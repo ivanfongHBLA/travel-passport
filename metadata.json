@@ -1,0 +1,5 @@
+{
+  "name": "Travel Passport",
+  "description": "Extract structured travel data from text for map-based collection.",
+  "requestFramePermissions": []
+}
