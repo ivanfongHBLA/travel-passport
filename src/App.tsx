@@ -224,14 +224,51 @@ function ChangeView({ center }: { center: [number, number] }) {
 }
 
 export default function App() {
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState(() => {
+    return localStorage.getItem('inputText') || '';
+  });
   const [isLoading, setIsLoading] = useState(false);
-  const [extractedData, setExtractedData] = useState<TravelData | null>(null);
-  const [persistentPlaces, setPersistentPlaces] = useState<Place[]>([]);
+  const [extractedData, setExtractedData] = useState<TravelData | null>(() => {
+    const saved = localStorage.getItem('extractedData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [persistentPlaces, setPersistentPlaces] = useState<Place[]>(() => {
+    const saved = localStorage.getItem('persistentPlaces');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
-  const [checkedInPlaces, setCheckedInPlaces] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'grid' | 'map'>(() => {
+    return (localStorage.getItem('viewMode') as 'grid' | 'map') || 'grid';
+  });
+  const [checkedInPlaces, setCheckedInPlaces] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('checkedInPlaces');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  useEffect(() => {
+    localStorage.setItem('checkedInPlaces', JSON.stringify(Array.from(checkedInPlaces)));
+  }, [checkedInPlaces]);
+
+  useEffect(() => {
+    localStorage.setItem('persistentPlaces', JSON.stringify(persistentPlaces));
+  }, [persistentPlaces]);
+
+  useEffect(() => {
+    localStorage.setItem('inputText', inputText);
+  }, [inputText]);
+
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    if (extractedData) {
+      localStorage.setItem('extractedData', JSON.stringify(extractedData));
+    } else {
+      localStorage.removeItem('extractedData');
+    }
+  }, [extractedData]);
 
   const handleExtract = async () => {
     if (!inputText.trim()) return;
