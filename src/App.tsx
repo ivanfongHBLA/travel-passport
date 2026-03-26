@@ -1,9 +1,16 @@
 import { useState, useEffect, useMemo, ChangeEvent } from 'react';
-import { MapPin, Search, Loader2, Copy, Check, Globe, Utensils, Landmark, TreePine, Building2, Landmark as Unesco, Map as MapIcon, LayoutGrid, Map as MapViewIcon, Star, Award, CheckCircle2, Image as ImageIcon, X, Camera, Flag, Mountain, Trees, Waves, Plane, Anchor, Sprout, Soup, Footprints } from 'lucide-react';
+import { MapPin, Search, Loader2, Copy, Check, Globe, Utensils, Landmark, TreePine, Building2, Landmark as Unesco, Map as MapIcon, LayoutGrid, Map as MapViewIcon, Star, Award, CheckCircle2, Image as ImageIcon, X, Camera, Flag, Mountain, Trees, Waves, Plane, Anchor, Sprout, Soup, Footprints, Plus, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { extractTravelData, TravelData, Place } from './services/geminiService';
+import { auth, googleProvider, signInWithPopup, onAuthStateChanged, db, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, deleteDoc, User, handleFirestoreError, OperationType } from './firebase';
+
+interface LocalPlace extends Place {
+  checkedIn?: boolean;
+  ownerUid?: string;
+  updatedAt?: string;
+}
 
 // Fix Leaflet default icon issue
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -20,7 +27,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 // Custom icons for special categories (Stamping Style)
 const createCustomIcon = (color: string, isChecked: boolean, svgContent: string) => {
-  const stampColor = isChecked ? '#059669' : color;
+  const stampColor = color;
   const rotation = Math.random() * 16 - 8;
   
   return L.divIcon({
@@ -36,8 +43,8 @@ const createCustomIcon = (color: string, isChecked: boolean, svgContent: string)
         border: 4px solid ${stampColor};
         border-radius: 10px;
         transform: rotate(${rotation}deg);
-        opacity: 0.85;
-        filter: contrast(1.2) brightness(0.9) grayscale(0.1) sepia(0.1);
+        opacity: ${isChecked ? '0.95' : '0.45'};
+        filter: ${isChecked ? 'contrast(1.4) brightness(0.8)' : 'contrast(0.8) brightness(1.1) grayscale(0.2)'};
         position: relative;
         color: ${stampColor};
         box-shadow: 2px 2px 0px ${stampColor}22;
@@ -46,12 +53,12 @@ const createCustomIcon = (color: string, isChecked: boolean, svgContent: string)
         <div style="
           position: absolute;
           inset: 0;
-          opacity: 0.15;
+          opacity: ${isChecked ? '0.2' : '0.1'};
           pointer-events: none;
           background-image: radial-gradient(${stampColor} 1px, transparent 0);
           background-size: 4px 4px;
         "></div>
-        ${isChecked ? '<div style="position: absolute; top: -10px; right: -10px; background: #059669; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
+        ${isChecked ? `<div style="position: absolute; top: -10px; right: -10px; background: ${stampColor}; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2); font-weight: bold;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>` : ''}
       </div>
     `,
     iconSize: [42, 42],
@@ -60,7 +67,7 @@ const createCustomIcon = (color: string, isChecked: boolean, svgContent: string)
 };
 
 const FlagIcon = (flagCode: string, isChecked: boolean) => {
-  const stampColor = isChecked ? '#059669' : '#1A1A1A';
+  const stampColor = '#1A1A1A';
   const rotation = Math.random() * 12 - 6;
   
   return L.divIcon({
@@ -76,13 +83,13 @@ const FlagIcon = (flagCode: string, isChecked: boolean) => {
         border: 4px solid ${stampColor};
         border-radius: 6px;
         transform: rotate(${rotation}deg);
-        opacity: 0.85;
-        filter: contrast(1.1) brightness(0.9) grayscale(0.2);
+        opacity: ${isChecked ? '0.95' : '0.45'};
+        filter: ${isChecked ? 'contrast(1.2) brightness(0.9)' : 'contrast(0.9) brightness(1.1) grayscale(0.4)'};
         position: relative;
         box-shadow: 2px 2px 0px ${stampColor}22;
       ">
         <img src="https://flagcdn.com/w80/${flagCode.toLowerCase()}.png" 
-             style="width: 30px; height: auto; border-radius: 2px; filter: contrast(1.2) saturate(0.8);" 
+             style="width: 30px; height: auto; border-radius: 2px; filter: contrast(1.2) saturate(${isChecked ? '1' : '0.4'});" 
              referrerpolicy="no-referrer" />
         <div style="
           position: absolute;
@@ -92,7 +99,7 @@ const FlagIcon = (flagCode: string, isChecked: boolean) => {
           background-image: radial-gradient(${stampColor} 1px, transparent 0);
           background-size: 3px 3px;
         "></div>
-        ${isChecked ? '<div style="position: absolute; top: -10px; right: -10px; background: #059669; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
+        ${isChecked ? `<div style="position: absolute; top: -10px; right: -10px; background: ${stampColor}; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>` : ''}
       </div>
     `,
     iconSize: [46, 36],
@@ -101,7 +108,7 @@ const FlagIcon = (flagCode: string, isChecked: boolean) => {
 };
 
 const MichelinIcon = (isChecked: boolean) => {
-  const stampColor = isChecked ? '#059669' : '#DC2626';
+  const stampColor = '#DC2626';
   const rotation = Math.random() * 20 - 10;
   
   return L.divIcon({
@@ -117,8 +124,8 @@ const MichelinIcon = (isChecked: boolean) => {
         border: 5px solid ${stampColor};
         border-radius: 12px;
         transform: rotate(${rotation}deg);
-        opacity: 0.9;
-        filter: contrast(1.3) brightness(0.85) sepia(0.2);
+        opacity: ${isChecked ? '0.95' : '0.45'};
+        filter: ${isChecked ? 'contrast(1.4) brightness(0.8)' : 'contrast(0.9) brightness(1.1) grayscale(0.3)'};
         position: relative;
         color: ${stampColor};
         box-shadow: 2px 2px 0px ${stampColor}22;
@@ -132,7 +139,7 @@ const MichelinIcon = (isChecked: boolean) => {
           background-image: radial-gradient(${stampColor} 1px, transparent 0);
           background-size: 5px 5px;
         "></div>
-        ${isChecked ? '<div style="position: absolute; top: -10px; right: -10px; background: #059669; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
+        ${isChecked ? `<div style="position: absolute; top: -10px; right: -10px; background: ${stampColor}; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>` : ''}
       </div>
     `,
     iconSize: [44, 44],
@@ -141,7 +148,7 @@ const MichelinIcon = (isChecked: boolean) => {
 };
 
 const UnescoIcon = (isChecked: boolean) => {
-  const stampColor = isChecked ? '#059669' : '#2563EB';
+  const stampColor = '#2563EB';
   const rotation = Math.random() * 16 - 8;
   
   return L.divIcon({
@@ -157,8 +164,8 @@ const UnescoIcon = (isChecked: boolean) => {
         border: 5px solid ${stampColor};
         border-radius: 50%;
         transform: rotate(${rotation}deg);
-        opacity: 0.9;
-        filter: contrast(1.2) brightness(0.9) grayscale(0.1);
+        opacity: ${isChecked ? '0.95' : '0.45'};
+        filter: ${isChecked ? 'contrast(1.4) brightness(0.8)' : 'contrast(0.9) brightness(1.1) grayscale(0.3)'};
         position: relative;
         color: ${stampColor};
         box-shadow: 2px 2px 0px ${stampColor}22;
@@ -172,7 +179,7 @@ const UnescoIcon = (isChecked: boolean) => {
           background-image: radial-gradient(${stampColor} 1px, transparent 0);
           background-size: 4px 4px;
         "></div>
-        ${isChecked ? '<div style="position: absolute; top: -10px; right: -10px; background: #059669; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
+        ${isChecked ? `<div style="position: absolute; top: -10px; right: -10px; background: ${stampColor}; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 10; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>` : ''}
       </div>
     `,
     iconSize: [44, 44],
@@ -195,10 +202,12 @@ const PhotoIcon = (imageUrl: string, isChecked: boolean) => {
         border: 4px solid ${stampColor};
         border-radius: 8px;
         transform: rotate(${rotation}deg);
+        opacity: ${isChecked ? '1' : '0.6'};
+        filter: ${isChecked ? 'contrast(1.1) brightness(0.95)' : 'contrast(0.9) brightness(1.1) grayscale(0.2)'};
         position: relative;
         box-shadow: 4px 4px 0px ${stampColor}22;
       ">
-        <img src="${imageUrl}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px; filter: contrast(1.1) brightness(0.95);" />
+        <img src="${imageUrl}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;" />
         <div style="
           position: absolute;
           inset: 0;
@@ -207,7 +216,7 @@ const PhotoIcon = (imageUrl: string, isChecked: boolean) => {
           background-image: radial-gradient(${stampColor} 1px, transparent 0);
           background-size: 4px 4px;
         "></div>
-        ${isChecked ? '<div style="position: absolute; top: -10px; right: -10px; background: #059669; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
+        ${isChecked ? `<div style="position: absolute; top: -10px; right: -10px; background: ${stampColor}; border-radius: 50%; width: 20px; height: 20px; border: 2px solid white; display: flex; align-items: center; justify-content: center; z-index: 20; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>` : ''}
       </div>
     `,
     iconSize: [52, 52],
@@ -224,35 +233,85 @@ function ChangeView({ center }: { center: [number, number] }) {
 }
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [inputText, setInputText] = useState(() => {
     return localStorage.getItem('inputText') || '';
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [extractedData, setExtractedData] = useState<TravelData | null>(() => {
-    const saved = localStorage.getItem('extractedData');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [persistentPlaces, setPersistentPlaces] = useState<Place[]>(() => {
-    const saved = localStorage.getItem('persistentPlaces');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [extractedData, setExtractedData] = useState<TravelData | null>(null);
+  const [persistentPlaces, setPersistentPlaces] = useState<LocalPlace[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'map'>(() => {
     return (localStorage.getItem('viewMode') as 'grid' | 'map') || 'grid';
   });
-  const [checkedInPlaces, setCheckedInPlaces] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem('checkedInPlaces');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
+  const [checkedInPlaces, setCheckedInPlaces] = useState<Set<string>>(new Set());
+  const [activeCategories, setActiveCategories] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('activeCategories');
+    const categories = ['Country', 'City', 'Architecture', 'Park', 'Scenery', 'Michelin Restaurant', 'UNESCO Site', 'Diving Site', 'Museum', 'Airport', 'Port', 'Botanical Park', 'Food', 'Jogging Spot', 'Other'];
+    return saved ? new Set(JSON.parse(saved)) : new Set(categories);
   });
 
+  // Auth Listener
   useEffect(() => {
-    localStorage.setItem('checkedInPlaces', JSON.stringify(Array.from(checkedInPlaces)));
-  }, [checkedInPlaces]);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
+  // Sync Data from Firestore
   useEffect(() => {
-    localStorage.setItem('persistentPlaces', JSON.stringify(persistentPlaces));
-  }, [persistentPlaces]);
+    if (!isAuthReady || !user) {
+      setPersistentPlaces([]);
+      setCheckedInPlaces(new Set());
+      return;
+    }
+
+    const placesRef = collection(db, `users/${user.uid}/places`);
+    const unsubscribe = onSnapshot(placesRef, (snapshot) => {
+      const places: LocalPlace[] = [];
+      const checkedIn = new Set<string>();
+      snapshot.forEach((doc) => {
+        const data = doc.data() as LocalPlace;
+        places.push(data);
+        if (data.checkedIn) {
+          checkedIn.add(data.name);
+        }
+      });
+      setPersistentPlaces(places);
+      setCheckedInPlaces(checkedIn);
+    }, (err) => {
+      // Ignore initial permission errors if rules are still deploying
+      if (err.code !== 'permission-denied') {
+        handleFirestoreError(err, OperationType.GET, `users/${user.uid}/places`);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, isAuthReady]);
+
+  const handleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      // Initialize user doc
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.error('Login failed', err);
+      setError('Login failed. Please try again.');
+    }
+  };
+
+  const handleLogout = () => auth.signOut();
 
   useEffect(() => {
     localStorage.setItem('inputText', inputText);
@@ -288,56 +347,57 @@ export default function App() {
     }
   };
 
-  const toggleCheckIn = (place: Place) => {
-    const newCheckedIn = new Set(checkedInPlaces);
-    const isCheckingIn = !newCheckedIn.has(place.name);
-    
-    if (isCheckingIn) {
-      newCheckedIn.add(place.name);
-      // Add to persistent if not already there
-      if (!persistentPlaces.some(p => p.name === place.name)) {
-        setPersistentPlaces(prev => [...prev, place]);
-      }
-    } else {
-      newCheckedIn.delete(place.name);
-      // Keep in persistent unless user explicitly wants to remove (for now we keep them to "remain" on map)
+  const toggleCheckIn = async (place: LocalPlace) => {
+    if (!user) {
+      setError('Please login to save your progress!');
+      return;
     }
-    setCheckedInPlaces(newCheckedIn);
+
+    const isCheckingIn = !checkedInPlaces.has(place.name);
+    const placeId = place.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const placeRef = doc(db, `users/${user.uid}/places`, placeId);
+
+    try {
+      await setDoc(placeRef, {
+        ...place,
+        checkedIn: isCheckingIn,
+        ownerUid: user.uid,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/places/${placeId}`);
+    }
   };
 
-  const handleImageUpload = (placeName: string, e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (placeName: string, e: ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const base64String = reader.result as string;
-      setPersistentPlaces(prev => prev.map(p => 
-        p.name === placeName ? { ...p, image: base64String } : p
-      ));
-      if (extractedData) {
-        setExtractedData({
-          ...extractedData,
-          places: extractedData.places.map(p => 
-            p.name === placeName ? { ...p, image: base64String } : p
-          )
-        });
+      const placeId = placeName.replace(/[^a-zA-Z0-9]/g, '_');
+      const placeRef = doc(db, `users/${user.uid}/places`, placeId);
+      
+      try {
+        await setDoc(placeRef, { image: base64String }, { merge: true });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/places/${placeId}`);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const removeImage = (placeName: string) => {
-    setPersistentPlaces(prev => prev.map(p => 
-      p.name === placeName ? { ...p, image: undefined } : p
-    ));
-    if (extractedData) {
-      setExtractedData({
-        ...extractedData,
-        places: extractedData.places.map(p => 
-          p.name === placeName ? { ...p, image: undefined } : p
-        )
-      });
+  const removeImage = async (placeName: string) => {
+    if (!user) return;
+    const placeId = placeName.replace(/[^a-zA-Z0-9]/g, '_');
+    const placeRef = doc(db, `users/${user.uid}/places`, placeId);
+    
+    try {
+      await setDoc(placeRef, { image: null }, { merge: true });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/places/${placeId}`);
     }
   };
 
@@ -360,15 +420,43 @@ export default function App() {
   // Combine current extraction with persistent checked-in places
   const allMapPlaces = useMemo(() => {
     const currentPlaces = extractedData?.places || [];
-    const map = new Map<string, Place>();
+    const map = new Map<string, LocalPlace>();
     
     // Add persistent places first
     persistentPlaces.forEach(p => map.set(p.name, p));
     // Current extraction overrides persistent if same name
     currentPlaces.forEach(p => map.set(p.name, p));
     
-    return Array.from(map.values());
-  }, [extractedData, persistentPlaces]);
+    return Array.from(map.values()).filter(p => activeCategories.has(p.category));
+  }, [extractedData, persistentPlaces, activeCategories]);
+
+  const toggleCategory = (category: string) => {
+    const newActive = new Set(activeCategories);
+    if (newActive.has(category)) {
+      newActive.delete(category);
+    } else {
+      newActive.add(category);
+    }
+    setActiveCategories(newActive);
+  };
+
+  const CATEGORY_CONFIG: Record<string, { icon: any, color: string }> = {
+    'Country': { icon: Flag, color: '#1A1A1A' },
+    'City': { icon: Globe, color: '#4B5563' },
+    'Architecture': { icon: Building2, color: '#7C3AED' },
+    'Park': { icon: Trees, color: '#059669' },
+    'Scenery': { icon: Mountain, color: '#2563EB' },
+    'Michelin Restaurant': { icon: Star, color: '#DC2626' },
+    'UNESCO Site': { icon: Unesco, color: '#2563EB' },
+    'Diving Site': { icon: Waves, color: '#0891B2' },
+    'Museum': { icon: Landmark, color: '#D97706' },
+    'Airport': { icon: Plane, color: '#6366F1' },
+    'Port': { icon: Anchor, color: '#0EA5E9' },
+    'Botanical Park': { icon: Sprout, color: '#10B981' },
+    'Food': { icon: Soup, color: '#F59E0B' },
+    'Jogging Spot': { icon: Footprints, color: '#EC4899' },
+    'Other': { icon: MapIcon, color: '#1A1A1A' },
+  };
 
   return (
     <div className="min-h-screen bg-[#FFFBEB] font-sans text-[#1A1A1A]">
@@ -384,29 +472,94 @@ export default function App() {
               <p className="text-sm font-medium opacity-80">Your sticker book of global adventures!</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-3 bg-white p-2 rounded-2xl cartoon-border cartoon-shadow-sm">
-            <button 
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
-                viewMode === 'grid' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
-              }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              Collection
-            </button>
-            <button 
-              onClick={() => setViewMode('map')}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
-                viewMode === 'map' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
-              }`}
-            >
-              <MapViewIcon className="w-4 h-4" />
-              Map View
-            </button>
+
+          <div className="flex flex-wrap items-center gap-4">
+            {user ? (
+              <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-2xl cartoon-border cartoon-shadow-sm">
+                <img src={user.photoURL || ''} className="w-10 h-10 rounded-xl cartoon-border" alt="Profile" referrerpolicy="no-referrer" />
+                <div className="hidden sm:block">
+                  <p className="text-xs font-bold text-[#1A1A1A] leading-tight">{user.displayName}</p>
+                  <button onClick={handleLogout} className="text-[10px] font-bold text-[#DC2626] uppercase hover:underline">Logout</button>
+                </div>
+                <button onClick={handleLogout} className="sm:hidden text-[#DC2626]"><LogOut className="w-5 h-5" /></button>
+              </div>
+            ) : (
+              <button 
+                onClick={handleLogin}
+                className="flex items-center gap-2 px-6 py-3 bg-white rounded-2xl font-fredoka font-bold text-sm cartoon-border cartoon-shadow-sm hover:translate-y-[-2px] transition-all active:translate-y-[2px] active:shadow-none"
+              >
+                <LogIn className="w-4 h-4" />
+                Login with Google
+              </button>
+            )}
+            
+            <div className="flex items-center gap-3 bg-white p-2 rounded-2xl cartoon-border cartoon-shadow-sm">
+              <button 
+                onClick={() => setViewMode('grid')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
+                  viewMode === 'grid' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
+                }`}
+              >
+                <LayoutGrid className="w-4 h-4" />
+                Collection
+              </button>
+              <button 
+                onClick={() => setViewMode('map')}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
+                  viewMode === 'map' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
+                }`}
+              >
+                <MapViewIcon className="w-4 h-4" />
+                Map View
+              </button>
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Category Filters */}
+      <div className="bg-white border-b-2 border-[#1A1A1A] py-4 sticky top-[116px] z-40 overflow-x-auto no-scrollbar">
+        <div className="max-w-7xl mx-auto px-6 flex items-center gap-3">
+          <div className="flex items-center gap-2 mr-4">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-[#9E9E9E] whitespace-nowrap">Filter:</span>
+            <button
+              onClick={() => setActiveCategories(new Set(Object.keys(CATEGORY_CONFIG)))}
+              className="text-[10px] font-bold uppercase tracking-tighter text-[#1A1A1A] hover:underline whitespace-nowrap"
+            >
+              All
+            </button>
+            <span className="text-[10px] text-[#E5E5E5]">|</span>
+            <button
+              onClick={() => setActiveCategories(new Set())}
+              className="text-[10px] font-bold uppercase tracking-tighter text-[#1A1A1A] hover:underline whitespace-nowrap"
+            >
+              None
+            </button>
+          </div>
+          {Object.entries(CATEGORY_CONFIG).map(([cat, config]) => {
+            const isActive = activeCategories.has(cat);
+            const Icon = config.icon;
+            return (
+              <button
+                key={cat}
+                onClick={() => toggleCategory(cat)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-fredoka font-bold transition-all whitespace-nowrap cartoon-border-sm ${
+                  isActive 
+                    ? 'bg-white shadow-sm' 
+                    : 'bg-[#F5F5F5] text-[#9E9E9E] opacity-60 grayscale'
+                }`}
+                style={{ 
+                  borderColor: isActive ? config.color : '#E5E5E5',
+                  color: isActive ? config.color : '#9E9E9E'
+                }}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {cat}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
@@ -815,14 +968,18 @@ function DataCard({ icon: Icon, title, items, checkedIn, onToggle, onImageUpload
         {items.map((item, idx) => (
           <div
             key={idx}
-            className={`p-4 bg-white text-[#1A1A1A] rounded-2xl cartoon-border transition-all flex flex-col gap-4 ${
-              checkedIn.has(item.name) ? 'bg-green-50/30' : ''
+            className={`p-4 rounded-2xl cartoon-border transition-all flex flex-col gap-4 ${
+              checkedIn.has(item.name) ? '' : 'bg-white'
             }`}
+            style={{ 
+              backgroundColor: checkedIn.has(item.name) ? `${stampColor}15` : 'white',
+              borderColor: checkedIn.has(item.name) ? stampColor : '#E5E5E5'
+            }}
           >
             <div className="flex items-center justify-between gap-4">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-fredoka font-bold text-sm">{item.name}</span>
+                  <span className="font-fredoka font-bold text-sm" style={{ color: checkedIn.has(item.name) ? stampColor : '#1A1A1A' }}>{item.name}</span>
                   <div className="flex items-center gap-1.5 bg-[#F5F5F5] px-2 py-0.5 rounded-lg cartoon-border-sm">
                     <img 
                       src={`https://flagcdn.com/w20/${item.countryCode.toLowerCase()}.png`} 
@@ -837,11 +994,14 @@ function DataCard({ icon: Icon, title, items, checkedIn, onToggle, onImageUpload
               </div>
               <button
                 onClick={() => onToggle(item)}
-                className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all cartoon-border ${
-                  checkedIn.has(item.name) ? 'bg-green-500 text-white' : 'bg-[#F5F5F5] text-[#9E9E9E] hover:bg-[#E5E5E5]'
-                }`}
+                className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all cartoon-border`}
+                style={{
+                  backgroundColor: checkedIn.has(item.name) ? stampColor : '#F5F5F5',
+                  color: checkedIn.has(item.name) ? 'white' : '#9E9E9E',
+                  borderColor: checkedIn.has(item.name) ? stampColor : '#E5E5E5'
+                }}
               >
-                {checkedIn.has(item.name) ? <Check className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                {checkedIn.has(item.name) ? <Check className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
               </button>
             </div>
 

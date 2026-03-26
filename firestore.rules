@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: userId (UID)
+    // Fields:
+    //   - uid: string (required) - Firebase Auth UID
+    //   - email: string (required) - User email
+    //   - displayName: string (optional) - User display name
+    //   - photoURL: string (optional) - User profile photo URL
+    //   - createdAt: timestamp (optional) - Creation timestamp
+    //
+    // Collection: /users/{userId}/places/{placeId}
+    // Document ID: placeId (usually place name or random ID)
+    // Fields:
+    //   - name: string (required)
+    //   - category: string (required)
+    //   - description: string (optional)
+    //   - coordinates: map (optional)
+    //   - flagCode: string (optional)
+    //   - image: string (optional) - Base64 image data
+    //   - checkedIn: bool (optional)
+    //   - ownerUid: string (required)
+    //   - updatedAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.email.size() < 256;
+    }
+
+    function isValidPlace(data) {
+      return data.keys().hasAll(['name', 'category', 'ownerUid']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 256 &&
+             data.category is string &&
+             data.ownerUid == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      
+      match /places/{placeId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidPlace(request.resource.data);
+        allow update: if isOwner(userId) && isValidPlace(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
