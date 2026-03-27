@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, ChangeEvent } from 'react';
-import { MapPin, Search, Loader2, Copy, Check, Globe, Utensils, Landmark, TreePine, Building2, Landmark as Unesco, Map as MapIcon, LayoutGrid, Map as MapViewIcon, Star, Award, Trophy, CheckCircle2, Image as ImageIcon, X, Camera, Flag, Mountain, Trees, Waves, Plane, Anchor, Sprout, Soup, Footprints, Plus, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { MapPin, Search, Loader2, Check, Globe, Utensils, Landmark, TreePine, Building2, Landmark as Unesco, Map as MapIcon, LayoutGrid, Map as MapViewIcon, Star, Award, Trophy, CheckCircle2, Image as ImageIcon, X, Camera, Flag, Mountain, Trees, Waves, Plane, Anchor, Sprout, Soup, Footprints, Plus, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -245,7 +245,6 @@ export default function App() {
   const [extractedData, setExtractedData] = useState<TravelData | null>(null);
   const [persistentPlaces, setPersistentPlaces] = useState<LocalPlace[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'map' | 'badges' | 'leaderboard'>(() => {
     return (localStorage.getItem('viewMode') as 'grid' | 'map' | 'badges' | 'leaderboard') || 'grid';
   });
@@ -404,20 +403,6 @@ export default function App() {
     }
   };
 
-  const copyToClipboard = () => {
-    if (!extractedData) return;
-    const dataToCopy = {
-      ...extractedData,
-      places: extractedData.places.map(p => ({
-        ...p,
-        checkedIn: checkedInPlaces.has(p.name)
-      }))
-    };
-    navigator.clipboard.writeText(JSON.stringify(dataToCopy, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   const hasData = extractedData && extractedData.places.length > 0;
 
   // Combine current extraction with persistent checked-in places
@@ -432,6 +417,17 @@ export default function App() {
     
     return Array.from(map.values()).filter(p => activeCategories.has(p.category));
   }, [extractedData, persistentPlaces, activeCategories]);
+
+  const mapCenter = useMemo(() => {
+    if (extractedData?.center) {
+      return [extractedData.center.lat, extractedData.center.lng] as [number, number];
+    }
+    if (allMapPlaces.length > 0) {
+      // Use the first place as center
+      return [allMapPlaces[0].lat, allMapPlaces[0].lng] as [number, number];
+    }
+    return [20, 0] as [number, number]; // Default world view
+  }, [extractedData, allMapPlaces]);
 
   const toggleCategory = (category: string) => {
     const newActive = new Set(activeCategories);
@@ -468,7 +464,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto w-full px-4 md:px-6 flex flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3 md:gap-4">
             <div className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-xl md:rounded-2xl cartoon-border flex items-center justify-center rotate-[-3deg] cartoon-shadow-sm shrink-0">
-              <Globe className="w-6 h-6 md:w-8 md:h-8 text-[#1A1A1A]" />
+              <MapPin className="w-6 h-6 md:w-8 md:h-8 text-[#1A1A1A]" />
             </div>
             <div>
               <h1 className="text-xl md:text-4xl font-fredoka font-bold tracking-tight text-[#1A1A1A] leading-none">Travel Passport</h1>
@@ -655,22 +651,6 @@ export default function App() {
                 >
                   <Leaderboard userEmail={user?.email || ''} />
                 </motion.div>
-              ) : !extractedData && !isLoading ? (
-                <motion.div
-                  key="empty"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="h-[calc(100vh-350px)] min-h-[500px] flex flex-col items-center justify-center text-center p-12 bg-white rounded-3xl border border-dashed border-[#E5E5E5]"
-                >
-                  <div className="w-16 h-16 bg-[#F5F5F5] rounded-full flex items-center justify-center mb-4">
-                    <Globe className="text-[#9E9E9E] w-8 h-8" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-2">Ready to Extract</h3>
-                  <p className="text-[#9E9E9E] text-sm max-w-xs">
-                    Paste your travel text on the left and click extract to see structured data and map visualization.
-                  </p>
-                </motion.div>
               ) : isLoading ? (
                 <motion.div
                   key="loading"
@@ -697,22 +677,15 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xs font-semibold uppercase tracking-wider text-[#9E9E9E]">
-                      {viewMode === 'grid' ? 'Extracted Entities' : 'Map Visualization'}
+                      {viewMode === 'grid' ? 'My Passport' : 'Map Visualization'}
                     </h2>
-                    <button
-                      onClick={copyToClipboard}
-                      className="flex items-center gap-2 text-xs font-medium text-[#9E9E9E] hover:text-[#1A1A1A] transition-colors"
-                    >
-                      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
-                      {copied ? 'Copied' : 'Copy JSON'}
-                    </button>
                   </div>
 
                     <div className="flex-1 bg-white rounded-3xl border border-[#E5E5E5] overflow-hidden shadow-sm">
                       {viewMode === 'map' ? (
                         <div className="w-full h-[calc(100vh-280px)] md:h-[calc(100vh-350px)] min-h-[400px] md:min-h-[500px] relative z-0">
                         <MapContainer
-                          center={[extractedData.center.lat, extractedData.center.lng]}
+                          center={mapCenter}
                           zoom={4}
                           scrollWheelZoom={true}
                           className="w-full h-full"
@@ -721,7 +694,7 @@ export default function App() {
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                           />
-                          <ChangeView center={[extractedData.center.lat, extractedData.center.lng]} />
+                          <ChangeView center={mapCenter} />
                           {allMapPlaces.map((place, idx) => {
                             const isChecked = checkedInPlaces.has(place.name);
                             let markerIcon: any;
