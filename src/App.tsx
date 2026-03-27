@@ -1,10 +1,13 @@
 import { useState, useEffect, useMemo, ChangeEvent } from 'react';
-import { MapPin, Search, Loader2, Copy, Check, Globe, Utensils, Landmark, TreePine, Building2, Landmark as Unesco, Map as MapIcon, LayoutGrid, Map as MapViewIcon, Star, Award, CheckCircle2, Image as ImageIcon, X, Camera, Flag, Mountain, Trees, Waves, Plane, Anchor, Sprout, Soup, Footprints, Plus, LogIn, LogOut, User as UserIcon } from 'lucide-react';
+import { MapPin, Search, Loader2, Copy, Check, Globe, Utensils, Landmark, TreePine, Building2, Landmark as Unesco, Map as MapIcon, LayoutGrid, Map as MapViewIcon, Star, Award, Trophy, CheckCircle2, Image as ImageIcon, X, Camera, Flag, Mountain, Trees, Waves, Plane, Anchor, Sprout, Soup, Footprints, Plus, LogIn, LogOut, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { extractTravelData, TravelData, Place } from './services/geminiService';
 import { auth, googleProvider, signInWithPopup, onAuthStateChanged, db, collection, doc, setDoc, getDoc, getDocs, onSnapshot, query, where, deleteDoc, User, handleFirestoreError, OperationType } from './firebase';
+
+import { Achievements } from './components/Achievements';
+import { Leaderboard } from './components/Leaderboard';
 
 interface LocalPlace extends Place {
   checkedIn?: boolean;
@@ -243,8 +246,8 @@ export default function App() {
   const [persistentPlaces, setPersistentPlaces] = useState<LocalPlace[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'map'>(() => {
-    return (localStorage.getItem('viewMode') as 'grid' | 'map') || 'grid';
+  const [viewMode, setViewMode] = useState<'grid' | 'map' | 'badges' | 'leaderboard'>(() => {
+    return (localStorage.getItem('viewMode') as 'grid' | 'map' | 'badges' | 'leaderboard') || 'grid';
   });
   const [checkedInPlaces, setCheckedInPlaces] = useState<Set<string>>(new Set());
   const [activeCategories, setActiveCategories] = useState<Set<string>>(() => {
@@ -461,42 +464,43 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FFFBEB] font-sans text-[#1A1A1A]">
       {/* Header */}
-      <header className="py-8 px-6 bg-[#FFD600] border-b-4 border-[#1A1A1A] cartoon-shadow sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white rounded-2xl cartoon-border flex items-center justify-center rotate-[-3deg] cartoon-shadow-sm">
-              <Globe className="w-8 h-8 text-[#1A1A1A]" />
+      <header className="h-16 md:h-24 bg-[#FFD600] border-b-4 border-[#1A1A1A] cartoon-shadow sticky top-0 z-50 flex items-center">
+        <div className="max-w-7xl mx-auto w-full px-4 md:px-6 flex flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <div className="w-10 h-10 md:w-14 md:h-14 bg-white rounded-xl md:rounded-2xl cartoon-border flex items-center justify-center rotate-[-3deg] cartoon-shadow-sm shrink-0">
+              <Globe className="w-6 h-6 md:w-8 md:h-8 text-[#1A1A1A]" />
             </div>
             <div>
-              <h1 className="text-4xl font-fredoka font-bold tracking-tight text-[#1A1A1A]">Travel Passport</h1>
-              <p className="text-sm font-medium opacity-80">Your sticker book of global adventures!</p>
+              <h1 className="text-xl md:text-4xl font-fredoka font-bold tracking-tight text-[#1A1A1A] leading-none">Travel Passport</h1>
+              <p className="text-[10px] md:text-sm font-medium opacity-80 hidden sm:block">Your sticker book of global adventures!</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
             {user ? (
-              <div className="flex items-center gap-3 bg-white p-2 pr-4 rounded-2xl cartoon-border cartoon-shadow-sm">
-                <img src={user.photoURL || ''} className="w-10 h-10 rounded-xl cartoon-border" alt="Profile" referrerpolicy="no-referrer" />
-                <div className="hidden sm:block">
-                  <p className="text-xs font-bold text-[#1A1A1A] leading-tight">{user.displayName}</p>
-                  <button onClick={handleLogout} className="text-[10px] font-bold text-[#DC2626] uppercase hover:underline">Logout</button>
+              <div className="flex items-center gap-2 md:gap-3 bg-white p-1.5 md:p-2 md:pr-4 rounded-xl md:rounded-2xl cartoon-border cartoon-shadow-sm">
+                <img src={user.photoURL || ''} className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl cartoon-border" alt="Profile" referrerpolicy="no-referrer" />
+                <div className="hidden md:flex flex-col">
+                  <p className="text-sm font-fredoka font-bold text-[#1A1A1A] leading-tight">{user.displayName}</p>
+                  <button onClick={handleLogout} className="text-[10px] font-bold text-[#DC2626] uppercase hover:underline text-left">Logout</button>
                 </div>
-                <button onClick={handleLogout} className="sm:hidden text-[#DC2626]"><LogOut className="w-5 h-5" /></button>
+                <button onClick={handleLogout} className="md:hidden p-1 text-[#DC2626]"><LogOut className="w-4 h-4" /></button>
               </div>
             ) : (
               <button 
                 onClick={handleLogin}
-                className="flex items-center gap-2 px-6 py-3 bg-white rounded-2xl font-fredoka font-bold text-sm cartoon-border cartoon-shadow-sm hover:translate-y-[-2px] transition-all active:translate-y-[2px] active:shadow-none"
+                className="flex items-center gap-2 px-4 md:px-6 py-2 md:py-3 bg-white rounded-xl md:rounded-2xl font-fredoka font-bold text-xs md:text-sm cartoon-border cartoon-shadow-sm hover:translate-y-[-2px] transition-all active:translate-y-[2px] active:shadow-none"
               >
                 <LogIn className="w-4 h-4" />
-                Login with Google
+                <span className="hidden sm:inline">Login with Google</span>
+                <span className="sm:hidden">Login</span>
               </button>
             )}
             
-            <div className="flex items-center gap-3 bg-white p-2 rounded-2xl cartoon-border cartoon-shadow-sm">
+            <div className="hidden md:flex items-center gap-2 bg-white p-2 rounded-2xl cartoon-border cartoon-shadow-sm">
               <button 
                 onClick={() => setViewMode('grid')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-fredoka font-bold text-xs transition-all whitespace-nowrap ${
                   viewMode === 'grid' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
                 }`}
               >
@@ -505,12 +509,30 @@ export default function App() {
               </button>
               <button 
                 onClick={() => setViewMode('map')}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-fredoka font-bold text-sm transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-fredoka font-bold text-xs transition-all whitespace-nowrap ${
                   viewMode === 'map' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
                 }`}
               >
                 <MapViewIcon className="w-4 h-4" />
-                Map View
+                Map
+              </button>
+              <button 
+                onClick={() => setViewMode('badges')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-fredoka font-bold text-xs transition-all whitespace-nowrap ${
+                  viewMode === 'badges' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
+                }`}
+              >
+                <Award className="w-4 h-4" />
+                Badges
+              </button>
+              <button 
+                onClick={() => setViewMode('leaderboard')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-fredoka font-bold text-xs transition-all whitespace-nowrap ${
+                  viewMode === 'leaderboard' ? 'bg-[#FFD600] text-[#1A1A1A] cartoon-border' : 'text-[#9E9E9E] hover:bg-[#F5F5F5]'
+                }`}
+              >
+                <Trophy className="w-4 h-4" />
+                Rankings
               </button>
             </div>
           </div>
@@ -518,20 +540,20 @@ export default function App() {
       </header>
 
       {/* Category Filters */}
-      <div className="bg-white border-b-2 border-[#1A1A1A] py-4 sticky top-[116px] z-40 overflow-x-auto no-scrollbar">
-        <div className="max-w-7xl mx-auto px-6 flex items-center gap-3">
-          <div className="flex items-center gap-2 mr-4">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-[#9E9E9E] whitespace-nowrap">Filter:</span>
+      <div className="bg-white border-b-2 border-[#1A1A1A] py-2 md:py-4 sticky top-16 md:top-24 z-40 overflow-x-auto no-scrollbar">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1.5 md:gap-2 mr-2 md:mr-4">
+            <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-widest text-[#9E9E9E] whitespace-nowrap">Filter:</span>
             <button
               onClick={() => setActiveCategories(new Set(Object.keys(CATEGORY_CONFIG)))}
-              className="text-[10px] font-bold uppercase tracking-tighter text-[#1A1A1A] hover:underline whitespace-nowrap"
+              className="text-[8px] md:text-[10px] font-bold uppercase tracking-tighter text-[#1A1A1A] hover:underline whitespace-nowrap"
             >
               All
             </button>
-            <span className="text-[10px] text-[#E5E5E5]">|</span>
+            <span className="text-[8px] md:text-[10px] text-[#E5E5E5]">|</span>
             <button
               onClick={() => setActiveCategories(new Set())}
-              className="text-[10px] font-bold uppercase tracking-tighter text-[#1A1A1A] hover:underline whitespace-nowrap"
+              className="text-[8px] md:text-[10px] font-bold uppercase tracking-tighter text-[#1A1A1A] hover:underline whitespace-nowrap"
             >
               None
             </button>
@@ -543,7 +565,7 @@ export default function App() {
               <button
                 key={cat}
                 onClick={() => toggleCategory(cat)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-fredoka font-bold transition-all whitespace-nowrap cartoon-border-sm ${
+                className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full text-[9px] md:text-xs font-fredoka font-bold transition-all whitespace-nowrap cartoon-border-sm ${
                   isActive 
                     ? 'bg-white shadow-sm' 
                     : 'bg-[#F5F5F5] text-[#9E9E9E] opacity-60 grayscale'
@@ -553,7 +575,7 @@ export default function App() {
                   color: isActive ? config.color : '#9E9E9E'
                 }}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3 md:w-3.5 h-3 md:h-3.5" />
                 {cat}
               </button>
             );
@@ -561,44 +583,42 @@ export default function App() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          {/* Input Section */}
-          <div className="lg:col-span-4 space-y-8">
-            <div className="bg-white p-8 rounded-[40px] cartoon-border cartoon-shadow rotate-[-1deg]">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-[#FFD600] rounded-xl flex items-center justify-center cartoon-border">
-                  <Search className="w-5 h-5 text-[#1A1A1A]" />
-                </div>
-                <h2 className="text-xl font-fredoka font-bold">Log Your Journey</h2>
-              </div>
-              
-              <div className="space-y-6">
-                <div className="relative">
-                  <textarea
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-8 mb-20 md:mb-0">
+        <div className="flex flex-col gap-6 md:gap-8">
+          {/* Compact Input Bar - Only show in Grid/Map */}
+          {(viewMode === 'grid' || viewMode === 'map') && (
+            <>
+              <div className="bg-white p-3 md:p-4 rounded-2xl md:rounded-3xl cartoon-border cartoon-shadow flex flex-col md:flex-row items-center gap-3 md:gap-4">
+                <div className="flex-1 w-full relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9E9E9E]">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <input 
+                    type="text"
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
-                    placeholder="Where have you been? (e.g., 'I visited Tokyo, the Eiffel Tower, and ate at Noma in Copenhagen')"
-                    className="w-full h-48 p-6 bg-[#F9F9F9] rounded-3xl cartoon-border focus:ring-4 focus:ring-[#FFD600]/30 focus:outline-none text-sm font-medium resize-none placeholder:text-[#9E9E9E]"
+                    onKeyDown={(e) => e.key === 'Enter' && handleExtract()}
+                    placeholder="Search or paste URL..."
+                    className="w-full py-2.5 md:py-3.5 pl-10 md:pl-12 pr-6 bg-[#F9F9F9] rounded-xl md:rounded-2xl cartoon-border focus:ring-4 focus:ring-[#FFD600]/30 focus:outline-none text-xs md:text-sm font-medium placeholder:text-[#9E9E9E]"
                   />
-                  <div className="absolute bottom-4 right-4 text-[10px] font-mono text-[#9E9E9E]">
-                    Gemini AI Powered
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] md:text-[9px] font-mono text-[#9E9E9E] hidden sm:block">
+                    Gemini AI
                   </div>
                 </div>
                 
                 <button
                   onClick={handleExtract}
                   disabled={isLoading || !inputText.trim()}
-                  className="w-full py-5 bg-[#FFD600] text-[#1A1A1A] rounded-3xl font-fredoka font-bold text-lg cartoon-btn disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                  className="w-full md:w-auto px-6 md:px-10 py-2.5 md:py-3.5 bg-[#FFD600] text-[#1A1A1A] rounded-xl md:rounded-2xl font-fredoka font-bold text-xs md:text-sm cartoon-btn disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   {isLoading ? (
                     <>
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                      Stamping Passport...
+                      <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin" />
+                      Stamping...
                     </>
                   ) : (
                     <>
-                      <MapPin className="w-6 h-6" />
+                      <MapPin className="w-3.5 h-3.5 md:w-4 md:h-4" />
                       Add to Passport
                     </>
                   )}
@@ -606,24 +626,42 @@ export default function App() {
               </div>
 
               {error && (
-                <div className="mt-6 p-4 bg-red-50 border-2 border-red-500 text-red-600 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <div className="p-4 bg-red-50 border-2 border-red-500 text-red-600 rounded-2xl text-xs font-bold flex items-center gap-2 cartoon-shadow-sm">
                   <X className="w-4 h-4" />
                   {error}
                 </div>
               )}
-            </div>
-          </div>
+            </>
+          )}
 
           {/* Output Section */}
-          <div className="lg:col-span-8 min-h-[600px]">
+          <div className="min-h-[600px]">
             <AnimatePresence mode="wait">
-              {!extractedData && !isLoading ? (
+              {viewMode === 'badges' ? (
+                <motion.div
+                  key="badges"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <Achievements places={persistentPlaces} checkedInPlaces={checkedInPlaces} />
+                </motion.div>
+              ) : viewMode === 'leaderboard' ? (
+                <motion.div
+                  key="leaderboard"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <Leaderboard userEmail={user?.email || ''} />
+                </motion.div>
+              ) : !extractedData && !isLoading ? (
                 <motion.div
                   key="empty"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="h-full flex flex-col items-center justify-center text-center p-12 bg-white rounded-3xl border border-dashed border-[#E5E5E5]"
+                  className="h-[calc(100vh-350px)] min-h-[500px] flex flex-col items-center justify-center text-center p-12 bg-white rounded-3xl border border-dashed border-[#E5E5E5]"
                 >
                   <div className="w-16 h-16 bg-[#F5F5F5] rounded-full flex items-center justify-center mb-4">
                     <Globe className="text-[#9E9E9E] w-8 h-8" />
@@ -638,7 +676,7 @@ export default function App() {
                   key="loading"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="h-full flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-[#E5E5E5]"
+                  className="h-[calc(100vh-350px)] min-h-[500px] flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-[#E5E5E5]"
                 >
                   <div className="relative">
                     <div className="w-16 h-16 border-4 border-[#F5F5F5] border-t-[#1A1A1A] rounded-full animate-spin" />
@@ -670,9 +708,9 @@ export default function App() {
                     </button>
                   </div>
 
-                  <div className="flex-1 bg-white rounded-3xl border border-[#E5E5E5] overflow-hidden shadow-sm">
-                    {viewMode === 'map' ? (
-                      <div className="w-full h-full min-h-[500px] relative z-0">
+                    <div className="flex-1 bg-white rounded-3xl border border-[#E5E5E5] overflow-hidden shadow-sm">
+                      {viewMode === 'map' ? (
+                        <div className="w-full h-[calc(100vh-280px)] md:h-[calc(100vh-350px)] min-h-[400px] md:min-h-[500px] relative z-0">
                         <MapContainer
                           center={[extractedData.center.lat, extractedData.center.lng]}
                           zoom={4}
@@ -821,50 +859,50 @@ export default function App() {
                         </MapContainer>
                       </div>
                     ) : (
-                      <div className="p-6 overflow-y-auto max-h-[600px] space-y-8">
+                      <div className="p-4 md:p-6 overflow-y-auto max-h-[calc(100vh-280px)] md:max-h-[600px] space-y-6 md:space-y-8">
                         {/* Countries Summary */}
-                        <div className="bg-[#F9F9F9] p-6 rounded-3xl border border-[#E5E5E5]">
-                          <div className="flex items-center justify-between mb-6">
+                        <div className="bg-[#F9F9F9] p-4 md:p-6 rounded-2xl md:rounded-3xl border border-[#E5E5E5]">
+                          <div className="flex items-center justify-between mb-4 md:mb-6">
                             <h3 className="text-sm font-bold tracking-tight">Countries Visited</h3>
                             <span className="text-[10px] font-mono bg-white border border-[#E5E5E5] px-2 py-0.5 rounded text-[#9E9E9E]">
                               {new Set(allMapPlaces.filter(p => checkedInPlaces.has(p.name)).map(p => p.countryCode)).size} Total
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-3">
+                          <div className="flex flex-wrap gap-2 md:gap-3">
                             {(Array.from(new Set(allMapPlaces.filter(p => checkedInPlaces.has(p.name)).map(p => JSON.stringify({ code: p.countryCode, name: p.country })))) as string[])
                               .map(s => JSON.parse(s) as { code: string, name: string })
                               .map((country, idx) => (
-                                <div key={idx} className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-[#E5E5E5] shadow-sm hover:shadow-md transition-all">
+                                <div key={idx} className="flex items-center gap-1.5 md:gap-2 bg-white px-2 md:px-3 py-1.5 md:py-2 rounded-lg md:rounded-xl border border-[#E5E5E5] shadow-sm hover:shadow-md transition-all">
                                   <img 
                                     src={`https://flagcdn.com/w40/${country.code.toLowerCase()}.png`} 
                                     alt={country.name}
-                                    className="w-5 h-3.5 object-cover rounded-[1px] shadow-sm"
+                                    className="w-4 md:w-5 h-3 md:h-3.5 object-cover rounded-[1px] shadow-sm"
                                     referrerPolicy="no-referrer"
                                   />
-                                  <span className="text-xs font-semibold">{country.name}</span>
+                                  <span className="text-[10px] md:text-xs font-semibold">{country.name}</span>
                                 </div>
                               ))}
                             {checkedInPlaces.size === 0 && (
-                              <p className="text-xs text-[#9E9E9E] italic">Check in to places to see your country collection grow!</p>
+                              <p className="text-[10px] md:text-xs text-[#9E9E9E] italic">Check in to places to see your country collection grow!</p>
                             )}
                           </div>
                         </div>
 
                         {/* Visited Places Summary */}
                         {checkedInPlaces.size > 0 && (
-                          <div className="bg-green-50/30 p-6 rounded-3xl border border-green-100">
-                            <div className="flex items-center justify-between mb-6">
+                          <div className="bg-green-50/30 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-green-100">
+                            <div className="flex items-center justify-between mb-4 md:mb-6">
                               <h3 className="text-sm font-bold tracking-tight text-green-800">Places Visited</h3>
                               <span className="text-[10px] font-mono bg-white border border-green-200 px-2 py-0.5 rounded text-green-600">
                                 {checkedInPlaces.size} Total
                               </span>
                             </div>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap gap-1.5 md:gap-2">
                               {allMapPlaces.filter(p => checkedInPlaces.has(p.name)).map((place, idx) => (
-                                <div key={idx} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-green-100 shadow-sm text-[11px] font-medium text-green-700">
-                                  <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                <div key={idx} className="flex items-center gap-1.5 md:gap-2 bg-white px-2.5 md:px-3 py-1 md:py-1.5 rounded-full border border-green-100 shadow-sm text-[10px] md:text-[11px] font-medium text-green-700">
+                                  <CheckCircle2 className="w-2.5 md:w-3 h-2.5 md:h-3 text-green-500" />
                                   {place.name}
-                                  <span className="text-[9px] opacity-50">• {place.category}</span>
+                                  <span className="text-[8px] md:text-[9px] opacity-50">• {place.category}</span>
                                 </div>
                               ))}
                             </div>
@@ -899,17 +937,65 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-auto py-12 border-t border-[#E5E5E5] bg-white">
+      <footer className="mt-auto py-8 md:py-12 border-t border-[#E5E5E5] bg-white">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-[#9E9E9E]">
+          <p className="text-[10px] md:text-xs text-[#9E9E9E]">
             Powered by WaterWoodStudioIpoh
           </p>
-          <div className="flex gap-6">
-            <a href="#" className="text-xs font-medium text-[#9E9E9E] hover:text-[#1A1A1A]">Documentation</a>
-            <a href="#" className="text-xs font-medium text-[#9E9E9E] hover:text-[#1A1A1A]">Privacy Policy</a>
+          <div className="flex gap-4 md:gap-6">
+            <a href="#" className="text-[10px] md:text-xs font-medium text-[#9E9E9E] hover:text-[#1A1A1A]">Documentation</a>
+            <a href="#" className="text-[10px] md:text-xs font-medium text-[#9E9E9E] hover:text-[#1A1A1A]">Privacy Policy</a>
           </div>
         </div>
       </footer>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t-4 border-[#1A1A1A] z-[100] px-4 py-2 flex items-center justify-around cartoon-shadow-reverse">
+        <button 
+          onClick={() => setViewMode('grid')}
+          className={`flex flex-col items-center gap-1 p-2 transition-all ${
+            viewMode === 'grid' ? 'text-[#1A1A1A] scale-110' : 'text-[#9E9E9E]'
+          }`}
+        >
+          <div className={`p-2 rounded-xl ${viewMode === 'grid' ? 'bg-[#FFD600] cartoon-border-sm' : ''}`}>
+            <LayoutGrid className="w-5 h-5" />
+          </div>
+          <span className="text-[9px] font-fredoka font-bold uppercase tracking-tighter">Collection</span>
+        </button>
+        <button 
+          onClick={() => setViewMode('map')}
+          className={`flex flex-col items-center gap-1 p-2 transition-all ${
+            viewMode === 'map' ? 'text-[#1A1A1A] scale-110' : 'text-[#9E9E9E]'
+          }`}
+        >
+          <div className={`p-2 rounded-xl ${viewMode === 'map' ? 'bg-[#FFD600] cartoon-border-sm' : ''}`}>
+            <MapViewIcon className="w-5 h-5" />
+          </div>
+          <span className="text-[9px] font-fredoka font-bold uppercase tracking-tighter">Map</span>
+        </button>
+        <button 
+          onClick={() => setViewMode('badges')}
+          className={`flex flex-col items-center gap-1 p-2 transition-all ${
+            viewMode === 'badges' ? 'text-[#1A1A1A] scale-110' : 'text-[#9E9E9E]'
+          }`}
+        >
+          <div className={`p-2 rounded-xl ${viewMode === 'badges' ? 'bg-[#FFD600] cartoon-border-sm' : ''}`}>
+            <Award className="w-5 h-5" />
+          </div>
+          <span className="text-[9px] font-fredoka font-bold uppercase tracking-tighter">Badges</span>
+        </button>
+        <button 
+          onClick={() => setViewMode('leaderboard')}
+          className={`flex flex-col items-center gap-1 p-2 transition-all ${
+            viewMode === 'leaderboard' ? 'text-[#1A1A1A] scale-110' : 'text-[#9E9E9E]'
+          }`}
+        >
+          <div className={`p-2 rounded-xl ${viewMode === 'leaderboard' ? 'bg-[#FFD600] cartoon-border-sm' : ''}`}>
+            <Trophy className="w-5 h-5" />
+          </div>
+          <span className="text-[9px] font-fredoka font-bold uppercase tracking-tighter">Rankings</span>
+        </button>
+      </nav>
     </div>
   );
 }
@@ -924,7 +1010,7 @@ function DataCard({ icon: Icon, title, items, checkedIn, onToggle, onImageUpload
                     color === 'pink' ? '#EC4899' : '#1A1A1A';
 
   return (
-    <div className={`p-6 rounded-[32px] cartoon-border cartoon-shadow transition-all ${
+    <div className={`p-4 md:p-6 rounded-3xl md:rounded-[32px] cartoon-border cartoon-shadow transition-all ${
       color === 'red' ? 'bg-red-50/30' : 
       color === 'blue' ? 'bg-blue-50/30' : 
       color === 'green' ? 'bg-green-50/30' : 
@@ -932,11 +1018,11 @@ function DataCard({ icon: Icon, title, items, checkedIn, onToggle, onImageUpload
       color === 'pink' ? 'bg-pink-50/30' : 
       'bg-white'
     }`}>
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
         <div 
-          className="w-14 h-14 flex items-center justify-center relative"
+          className="w-10 h-10 md:w-14 md:h-14 flex items-center justify-center relative shrink-0"
           style={{
-            border: `4px solid ${stampColor}`,
+            border: `3px md:border-4 solid ${stampColor}`,
             borderRadius: '8px',
             transform: `rotate(${Math.random() * 10 - 5}deg)`,
             opacity: 0.85,
@@ -944,31 +1030,31 @@ function DataCard({ icon: Icon, title, items, checkedIn, onToggle, onImageUpload
             boxShadow: `2px 2px 0px ${stampColor}22`
           }}
         >
-          {color === 'red' ? <Star className="w-8 h-8" strokeWidth={2.5} /> : 
-           color === 'blue' ? <Unesco className="w-8 h-8" strokeWidth={2.5} /> : 
-           color === 'green' ? <Sprout className="w-8 h-8" strokeWidth={2.5} /> : 
-           color === 'orange' ? <Soup className="w-8 h-8" strokeWidth={2.5} /> : 
-           color === 'pink' ? <Footprints className="w-8 h-8" strokeWidth={2.5} /> : 
-           <Icon className="w-8 h-8" strokeWidth={2.5} />}
+          {color === 'red' ? <Star className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} /> : 
+           color === 'blue' ? <Unesco className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} /> : 
+           color === 'green' ? <Sprout className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} /> : 
+           color === 'orange' ? <Soup className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} /> : 
+           color === 'pink' ? <Footprints className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} /> : 
+           <Icon className="w-5 h-5 md:w-8 md:h-8" strokeWidth={2.5} />}
           
           {/* Stamp Texture Overlay */}
           <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden mix-blend-multiply">
             <div className="w-full h-full" style={{ backgroundImage: `radial-gradient(${stampColor} 1px, transparent 0)`, backgroundSize: '4px 4px' }}></div>
           </div>
         </div>
-        <div className="flex flex-col">
-          <h3 className="text-xl font-fredoka font-bold tracking-tight" style={{ color: stampColor }}>{title}</h3>
-          <span className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-50">Official Stamp</span>
+        <div className="flex flex-col min-w-0">
+          <h3 className="text-base md:text-xl font-fredoka font-bold tracking-tight truncate" style={{ color: stampColor }}>{title}</h3>
+          <span className="text-[8px] md:text-[10px] font-bold uppercase tracking-[0.2em] opacity-50">Official Stamp</span>
         </div>
-        <div className="ml-auto text-xs font-fredoka font-bold bg-white cartoon-border px-3 py-1 rounded-xl">
+        <div className="ml-auto text-[10px] md:text-xs font-fredoka font-bold bg-white cartoon-border px-2 md:px-3 py-0.5 md:py-1 rounded-lg md:rounded-xl">
           {items.length}
         </div>
       </div>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 md:gap-4">
         {items.map((item, idx) => (
           <div
             key={idx}
-            className={`p-4 rounded-2xl cartoon-border transition-all flex flex-col gap-4 ${
+            className={`p-3 md:p-4 rounded-xl md:rounded-2xl cartoon-border transition-all flex flex-col gap-3 md:gap-4 ${
               checkedIn.has(item.name) ? '' : 'bg-white'
             }`}
             style={{ 
@@ -976,63 +1062,63 @@ function DataCard({ icon: Icon, title, items, checkedIn, onToggle, onImageUpload
               borderColor: checkedIn.has(item.name) ? stampColor : '#E5E5E5'
             }}
           >
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-fredoka font-bold text-sm" style={{ color: checkedIn.has(item.name) ? stampColor : '#1A1A1A' }}>{item.name}</span>
-                  <div className="flex items-center gap-1.5 bg-[#F5F5F5] px-2 py-0.5 rounded-lg cartoon-border-sm">
+            <div className="flex items-center justify-between gap-3 md:gap-4">
+              <div className="flex flex-col gap-0.5 md:gap-1 min-w-0">
+                <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+                  <span className="font-fredoka font-bold text-xs md:text-sm truncate" style={{ color: checkedIn.has(item.name) ? stampColor : '#1A1A1A' }}>{item.name}</span>
+                  <div className="flex items-center gap-1 bg-[#F5F5F5] px-1.5 md:px-2 py-0.5 rounded-md md:rounded-lg cartoon-border-sm shrink-0">
                     <img 
                       src={`https://flagcdn.com/w20/${item.countryCode.toLowerCase()}.png`} 
                       alt={item.country}
-                      className="w-4 h-3 object-cover rounded-[1px]"
+                      className="w-3 md:w-4 h-2 md:h-3 object-cover rounded-[1px]"
                       referrerPolicy="no-referrer"
                     />
-                    <span className="text-[10px] text-[#9E9E9E] font-bold uppercase tracking-tighter">{item.countryCode}</span>
+                    <span className="text-[8px] md:text-[10px] text-[#9E9E9E] font-bold uppercase tracking-tighter">{item.countryCode}</span>
                   </div>
                 </div>
-                {item.metadata && <span className="text-[11px] text-[#9E9E9E] font-medium italic">{item.metadata}</span>}
+                {item.metadata && <span className="text-[9px] md:text-[11px] text-[#9E9E9E] font-medium italic truncate">{item.metadata}</span>}
               </div>
               <button
                 onClick={() => onToggle(item)}
-                className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all cartoon-border`}
+                className={`shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center transition-all cartoon-border`}
                 style={{
                   backgroundColor: checkedIn.has(item.name) ? stampColor : '#F5F5F5',
                   color: checkedIn.has(item.name) ? 'white' : '#9E9E9E',
                   borderColor: checkedIn.has(item.name) ? stampColor : '#E5E5E5'
                 }}
               >
-                {checkedIn.has(item.name) ? <Check className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
+                {checkedIn.has(item.name) ? <Check className="w-4 h-4 md:w-6 md:h-6" /> : <Plus className="w-4 h-4 md:w-6 md:h-6" />}
               </button>
             </div>
 
             {checkedIn.has(item.name) && (
-              <div className="pt-4 border-t-2 border-dashed border-[#E5E5E5]">
+              <div className="pt-3 md:pt-4 border-t-2 border-dashed border-[#E5E5E5]">
                 {item.image ? (
                   <div className="relative group">
                     <img 
                       src={item.image} 
                       alt="Memory" 
-                      className="w-full h-40 object-cover rounded-2xl cartoon-border shadow-sm"
+                      className="w-full h-32 md:h-40 object-cover rounded-xl md:rounded-2xl cartoon-border shadow-sm"
                     />
                     <button 
                       onClick={() => onRemoveImage(item.name)}
-                      className="absolute top-3 right-3 p-2 bg-white rounded-full cartoon-border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+                      className="absolute top-2 md:top-3 right-2 md:right-3 p-1.5 md:p-2 bg-white rounded-full cartoon-border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
                     >
-                      <X className="w-4 h-4 text-red-500" />
+                      <X className="w-3 h-3 md:w-4 md:h-4 text-red-500" />
                     </button>
                   </div>
                 ) : (
-                  <label className="flex flex-col items-center justify-center gap-3 py-6 border-2 border-dashed border-[#E5E5E5] rounded-2xl cursor-pointer hover:border-[#FFD600] hover:bg-[#FFFBEB] transition-all group">
+                  <label className="flex flex-col items-center justify-center gap-2 md:gap-3 py-4 md:py-6 border-2 border-dashed border-[#E5E5E5] rounded-xl md:rounded-2xl cursor-pointer hover:border-[#FFD600] hover:bg-[#FFFBEB] transition-all group">
                     <input 
                       type="file" 
                       className="hidden" 
                       accept="image/*"
                       onChange={(e) => onImageUpload(item.name, e)}
                     />
-                    <div className="w-10 h-10 bg-[#F5F5F5] rounded-xl flex items-center justify-center group-hover:bg-[#FFD600] transition-colors">
-                      <Camera className="w-5 h-5 text-[#9E9E9E] group-hover:text-[#1A1A1A]" />
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-[#F5F5F5] rounded-lg md:rounded-xl flex items-center justify-center group-hover:bg-[#FFD600] transition-colors">
+                      <Camera className="w-4 h-4 md:w-5 md:h-5 text-[#9E9E9E] group-hover:text-[#1A1A1A]" />
                     </div>
-                    <span className="text-xs font-fredoka font-bold text-[#9E9E9E] group-hover:text-[#1A1A1A]">Add Memory Sticker</span>
+                    <span className="text-[10px] md:text-xs font-fredoka font-bold text-[#9E9E9E] group-hover:text-[#1A1A1A]">Add Memory Sticker</span>
                   </label>
                 )}
               </div>
